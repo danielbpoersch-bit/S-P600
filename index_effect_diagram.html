@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Index Inclusion & Exclusion Effect</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --inclusion: #22c55e;
+    --exclusion: #ef4444;
+    --neutral: #94a3b8;
+    --accent: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #475569;
+    --card: #16161f;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 40px 20px;
+    overflow-x: hidden;
+  }
+
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(22px, 4vw, 36px);
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .page-subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  .tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 40px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: fit-content;
+    margin-inline: auto;
+    overflow: hidden;
+  }
+
+  .tab {
+    padding: 10px 32px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    border: none;
+    transition: all 0.2s;
+    background: transparent;
+  }
+
+  .tab.inclusion { color: var(--inclusion); }
+  .tab.exclusion { color: var(--exclusion); }
+  .tab.active.inclusion { background: var(--inclusion); color: #000; }
+  .tab.active.exclusion { background: var(--exclusion); color: #fff; }
+
+  .diagram { display: none; max-width: 960px; margin: 0 auto; }
+  .diagram.active { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* TIMELINE */
+  .timeline {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 48px;
+    padding: 0 20px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 28px;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: var(--border);
+  }
+
+  .timeline-progress {
+    position: absolute;
+    top: 28px;
+    left: 20px;
+    height: 2px;
+    transition: width 0.6s ease;
+    width: 0%;
+  }
+
+  .inclusion .timeline-progress { background: var(--inclusion); }
+  .exclusion-diagram .timeline-progress { background: var(--exclusion); }
+
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 140px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .step-node {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s;
+  }
+
+  .step.active .step-node {
+    border-width: 2px;
+    box-shadow: 0 0 20px currentColor;
+    transform: scale(1.1);
+  }
+
+  .inclusion .step.active .step-node { border-color: var(--inclusion); color: var(--inclusion); box-shadow: 0 0 20px var(--inclusion); }
+  .exclusion-diagram .step.active .step-node { border-color: var(--exclusion); color: var(--exclusion); box-shadow: 0 0 20px var(--exclusion); }
+
+  .step-label {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  .step.active .step-label { color: var(--text); }
+
+  .step-time {
+    font-size: 8px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* DETAIL CARDS */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .detail-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s;
+    display: none;
+  }
+
+  .detail-card.visible { display: block; animation: fadeIn 0.3s ease; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .card-icon { font-size: 18px; }
+
+  .card-title {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .card-content {
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text);
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+
+  .tag-up { background: rgba(34,197,94,0.15); color: var(--inclusion); border: 1px solid rgba(34,197,94,0.3); }
+  .tag-down { background: rgba(239,68,68,0.15); color: var(--exclusion); border: 1px solid rgba(239,68,68,0.3); }
+  .tag-neutral { background: rgba(148,163,184,0.1); color: var(--neutral); border: 1px solid rgba(148,163,184,0.2); }
+  .tag-warn { background: rgba(245,158,11,0.15); color: var(--accent); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* PRICE CHART */
+  .chart-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .chart-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  svg.price-chart { width: 100%; height: 160px; }
+
+  /* ORDER BOOK */
+  .orderbook {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+
+  .ob-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .ob-phase {
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 3px;
+  }
+
+  .ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+
+  .ob-side-title {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+  }
+
+  .ob-ask .ob-side-title { color: var(--exclusion); }
+  .ob-bid .ob-side-title { color: var(--inclusion); }
+
+  .ob-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 8px;
+    font-size: 11px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+    margin-bottom: 2px;
+  }
+
+  .ob-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    opacity: 0.15;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .ob-ask .ob-bar { background: var(--exclusion); right: 0; }
+  .ob-bid .ob-bar { background: var(--inclusion); left: 0; }
+
+  .ob-price { z-index: 1; }
+  .ob-vol { z-index: 1; color: var(--muted); font-size: 10px; }
+
+  .ob-spread {
+    text-align: center;
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 6px;
+    color: var(--accent);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin: 4px 0;
+    grid-column: 1 / -1;
+  }
+
+  .ob-phases {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .ob-phase-btn {
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    transition: all 0.2s;
+  }
+
+  .ob-phase-btn.active { color: var(--text); border-color: var(--accent); background: rgba(245,158,11,0.1); }
+
+  /* ACTORS */
+  .actors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .actor-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .actor-icon { font-size: 24px; margin-bottom: 8px; }
+  .actor-name { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .actor-action { font-size: 11px; line-height: 1.5; color: var(--muted); }
+  .actor-timing { font-size: 9px; color: var(--accent); margin-top: 6px; }
+
+  /* SECTION LABEL */
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding-left: 4px;
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
+  }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  .highlight-box {
+    border-radius: 6px;
+    padding: 16px 20px;
+    font-size: 12px;
+    line-height: 1.8;
+    margin-bottom: 24px;
+  }
+
+  .highlight-inclusion { background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.2); }
+  .highlight-exclusion { background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2); }
+
+  @media (max-width: 600px) {
+    .detail-grid { grid-template-columns: 1fr; }
+    .step { width: 80px; }
+    .step-node { width: 40px; height: 40px; font-size: 14px; }
+    .timeline { padding: 0 8px; }
+    .timeline::before { left: 8px; right: 8px; }
+    .timeline-progress { left: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">The Index Effect</h1>
+<p class="page-subtitle">What happens when a stock enters or leaves an index</p>
+
+<div class="tabs">
+  <button class="tab inclusion active" onclick="switchTab('inclusion')">⬆ Inclusion</button>
+  <button class="tab exclusion" onclick="switchTab('exclusion')">⬇ Exclusion</button>
+</div>
+
+<!-- INCLUSION DIAGRAM -->
+<div class="diagram inclusion active" id="inclusion">
+
+  <div class="section-label">Timeline of Events</div>
+  <div class="timeline inclusion" id="inc-timeline">
+    <div class="timeline-progress" id="inc-progress"></div>
+    <div class="step active" onclick="setStep('inc',0)">
+      <div class="step-node">📋</div>
+      <div class="step-label">Pre-<br>Announcement</div>
+      <div class="step-time">T-30 to T-5</div>
+    </div>
+    <div class="step" onclick="setStep('inc',1)">
+      <div class="step-node">📣</div>
+      <div class="step-label">Announcement</div>
+      <div class="step-time">T=0 (after close)</div>
+    </div>
+    <div class="step" onclick="setStep('inc',2)">
+      <div class="step-node">📈</div>
+      <div class="step-label">Run-up<br>Period</div>
+      <div class="step-time">T+1 to T+4</div>
+    </div>
+    <div class="step" onclick="setStep('inc',3)">
+      <div class="step-node">🔔</div>
+      <div class="step-label">Effective<br>Date Close</div>
+      <div class="step-time">T+5</div>
+    </div>
+    <div class="step" onclick="setStep('inc',4)">
+      <div class="step-node">↩️</div>
+      <div class="step-label">Post-<br>Reversion</div>
+      <div class="step-time">T+6 to T+30</div>
+    </div>
+  </div>
+
+  <!-- Step detail cards -->
+  <div class="detail-grid">
+    <div class="detail-card visible" id="inc-card-0a">
+      <div class="card-header"><span class="card-icon">🤖</span><span class="card-title">ML Models & Quants</span></div>
+      <div class="card-content">Predict likely inclusions using earnings data, market cap drift, float criteria. Build long positions quietly before any announcement. This is your thesis edge — acting before T=0.</div>
+    </div>
+    <div class="detail-card visible" id="inc-card-0b">
+      <div class="card-header"><span class="card-icon">📊</span><span class="card-title">Stock Status</span></div>
+      <div class="card-content">Stock meets inclusion criteria: positive earnings, adequate float, liquidity thresholds. Price unaffected by index dynamics. Normal order book depth. <br><br><span class="tag tag-neutral">Normal Spreads</span><span class="tag tag-neutral">Normal Volume</span></div>
+    </div>
+
+    <div class="detail-card" id="inc-card-1a">
+      <div class="card-header"><span class="card-icon">⚡</span><span class="card-title">Immediate Reaction</span></div>
+      <div class="card-content">Announcement after close. Next morning: stock gaps up 3–7% at open. Arbitrageurs who predicted it take profits. New buyers pile in anticipating passive buying pressure.</div>
+    </div>
+    <div class="detail-card" id="inc-card-1b">
+      <div class="card-header"><span class="card-icon">📰</span><span class="card-title">Market Signal</span></div>
+      <div class="card-content">Pure mechanical signal — no new fundamental information. Price jump reflects <em>anticipated demand</em> from passive funds that must buy. <br><br><span class="tag tag-up">+3–7% Gap Up</span><span class="tag tag-warn">Volume Spike</span></div>
+    </div>
+
+    <div class="detail-card" id="inc-card-2a">
+      <div class="card-header"><span class="card-icon">🏃</span><span class="card-title">Arbitrageur Activity</span></div>
+      <div class="card-content">Front-runners who bought pre-announcement or at open now sit long. They sell into passive buying on effective date. Active managers also buy to reduce future tracking error vs benchmark.</div>
+    </div>
+    <div class="detail-card" id="inc-card-2b">
+      <div class="card-header"><span class="card-icon">📖</span><span class="card-title">Order Book Dynamics</span></div>
+      <div class="card-content">Ask side thins out — sellers pull offers, expecting higher prices. Bid side deepens as buyers accumulate. Spread may tighten. Continued upward drift as effective date approaches.<br><br><span class="tag tag-up">Continued Drift Up</span><span class="tag tag-neutral">Thin Ask Side</span></div>
+    </div>
+
+    <div class="detail-card" id="inc-card-3a">
+      <div class="card-header"><span class="card-icon">🏦</span><span class="card-title">Passive Funds Execute</span></div>
+      <div class="card-content">ETFs and index funds submit Market-On-Close (MOC) buy orders. Must buy regardless of price — zero discretion. All hit simultaneously at 4PM close. Volume can be 10–20× normal daily volume.</div>
+    </div>
+    <div class="detail-card" id="inc-card-3b">
+      <div class="card-header"><span class="card-icon">💰</span><span class="card-title">Price Impact</span></div>
+      <div class="card-content">Closing auction clears at elevated price — wherever supply meets the forced demand. Arbitrageurs who bought earlier sell into this wave. Price hits its <strong>peak</strong>.<br><br><span class="tag tag-up">Peak Price</span><span class="tag tag-warn">Max Volume</span><span class="tag tag-neutral">Zero Tracking Error</span></div>
+    </div>
+
+    <div class="detail-card" id="inc-card-4a">
+      <div class="card-header"><span class="card-icon">📉</span><span class="card-title">Reversion Pattern</span></div>
+      <div class="card-content">Forced buying is complete. No more mechanical demand. Arbitrageurs who sold at close take profits. Price slowly reverts toward fundamental value over 2–4 weeks.</div>
+    </div>
+    <div class="detail-card" id="inc-card-4b">
+      <div class="card-header"><span class="card-icon">⚖️</span><span class="card-title">Fundamental vs. Price</span></div>
+      <div class="card-content">If price was pushed <em>above</em> fundamental value by mechanical buying, reversion is a fade. This is the classic S&P 500 inclusion reversal documented in the literature.<br><br><span class="tag tag-down">Slow Reversion</span><span class="tag tag-neutral">Spreads Normalize</span></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">Who Does What</div>
+  <div class="actors-grid">
+    <div class="actor-card">
+      <div class="actor-icon">🤖</div>
+      <div class="actor-name">ML / Quants</div>
+      <div class="actor-action">Predict inclusion before announcement. Buy early.</div>
+      <div class="actor-timing">T-30 to T-5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">⚡</div>
+      <div class="actor-name">Arbitrageurs</div>
+      <div class="actor-action">Buy on/after announcement. Sell into passive buying at effective date.</div>
+      <div class="actor-timing">T=0 to T+5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">🏦</div>
+      <div class="actor-name">Passive ETFs</div>
+      <div class="actor-action">Submit MOC buy orders. Price-insensitive. Must replicate index exactly.</div>
+      <div class="actor-timing">T+5 close only</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">👔</div>
+      <div class="actor-name">Active Managers</div>
+      <div class="actor-action">Buy to reduce tracking error vs. benchmark. More discretion on timing.</div>
+      <div class="actor-timing">T+1 to T+5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">🏪</div>
+      <div class="actor-name">Market Makers</div>
+      <div class="actor-action">Pull ask-side liquidity as price rises. Re-enter after effective date.</div>
+      <div class="actor-timing">T+1 onwards</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">Price Path</div>
+  <div class="chart-container">
+    <div class="chart-title">Stylized abnormal return — inclusion event</div>
+    <svg class="price-chart" viewBox="0 0 900 160" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="inc-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#22c55e" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- Grid lines -->
+      <line x1="0" y1="40" x2="900" y2="40" stroke="#1e1e2e" stroke-width="1"/>
+      <line x1="0" y1="80" x2="900" y2="80" stroke="#1e1e2e" stroke-width="1"/>
+      <line x1="0" y1="120" x2="900" y2="120" stroke="#1e1e2e" stroke-width="1"/>
+      <!-- Fundamental value line -->
+      <line x1="0" y1="100" x2="900" y2="100" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="8" y="97" fill="#475569" font-size="9" font-family="DM Mono">Fundamental Value</text>
+      <!-- Announcement line -->
+      <line x1="200" y1="10" x2="200" y2="150" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <text x="205" y="22" fill="#f59e0b" font-size="8" font-family="DM Mono">Announcement</text>
+      <!-- Effective date line -->
+      <line x1="650" y1="10" x2="650" y2="150" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <text x="655" y="22" fill="#94a3b8" font-size="8" font-family="DM Mono">Effective Date</text>
+      <!-- Price path: flat → jump → run up → peak → revert -->
+      <polyline points="0,100 190,100 200,72 250,68 350,62 450,58 550,54 650,38 680,50 730,65 800,82 870,90 900,93"
+        fill="none" stroke="#22c55e" stroke-width="2.5"/>
+      <path d="M 0,100 L 190,100 L 200,72 L 250,68 L 350,62 L 450,58 L 550,54 L 650,38 L 680,50 L 730,65 L 800,82 L 870,90 L 900,93 L 900,160 L 0,160 Z"
+        fill="url(#inc-grad)"/>
+      <!-- Phase labels -->
+      <text x="80" y="148" fill="#475569" font-size="8" font-family="DM Mono">Pre</text>
+      <text x="390" y="148" fill="#22c55e" font-size="8" font-family="DM Mono">Run-up ↑</text>
+      <text x="740" y="148" fill="#ef4444" font-size="8" font-family="DM Mono">Reversion ↓</text>
+    </svg>
+  </div>
+
+</div>
+
+<!-- EXCLUSION DIAGRAM -->
+<div class="diagram exclusion-diagram" id="exclusion">
+
+  <div class="highlight-exclusion highlight-box">
+    <strong>S&P 600 Exclusion — Key Asymmetry:</strong> Unlike inclusions where price is already in Russell 2000, exclusions are <em>pure one-directional forced selling</em> with no structural offsetting buyer. Small-cap order books make price impact severe.
+  </div>
+
+  <div class="section-label">Timeline of Events</div>
+  <div class="timeline exclusion-diagram" id="exc-timeline">
+    <div class="timeline-progress" id="exc-progress"></div>
+    <div class="step active" onclick="setStep('exc',0)">
+      <div class="step-node">🔍</div>
+      <div class="step-label">Pre-<br>Announcement</div>
+      <div class="step-time">T-30 to T-5</div>
+    </div>
+    <div class="step" onclick="setStep('exc',1)">
+      <div class="step-node">📣</div>
+      <div class="step-label">Announcement</div>
+      <div class="step-time">T=0 (after close)</div>
+    </div>
+    <div class="step" onclick="setStep('exc',2)">
+      <div class="step-node">📉</div>
+      <div class="step-label">Drift Down<br>Period</div>
+      <div class="step-time">T+1 to T+4</div>
+    </div>
+    <div class="step" onclick="setStep('exc',3)">
+      <div class="step-node">🔔</div>
+      <div class="step-label">Effective<br>Date Close</div>
+      <div class="step-time">T+5</div>
+    </div>
+    <div class="step" onclick="setStep('exc',4)">
+      <div class="step-node">↩️</div>
+      <div class="step-label">Post-<br>Reversion</div>
+      <div class="step-time">T+6 to T+30</div>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-card visible" id="exc-card-0a">
+      <div class="card-header"><span class="card-icon">🤖</span><span class="card-title">ML Models & Quants</span></div>
+      <div class="card-content">Predict likely exclusions before announcement using deteriorating earnings, market cap drift below threshold, liquidity failures. Build short positions quietly. <strong>This is the thesis edge.</strong></div>
+    </div>
+    <div class="detail-card visible" id="exc-card-0b">
+      <div class="card-header"><span class="card-icon">📊</span><span class="card-title">Stock Status</span></div>
+      <div class="card-content">Stock may show signs of criteria breach: earnings turning negative, float shrinking, market cap drifting below S&P 600 threshold. Still included in index. Normal but potentially already weak order book.<br><br><span class="tag tag-neutral">Still In Index</span><span class="tag tag-warn">Weakening Fundamentals</span></div>
+    </div>
+
+    <div class="detail-card" id="exc-card-1a">
+      <div class="card-header"><span class="card-icon">⚡</span><span class="card-title">Immediate Reaction</span></div>
+      <div class="card-content">Announcement after close. Next morning: gap down at open. Shorts pile in. Market makers immediately pull bid-side liquidity. Spread widens dramatically from ~5¢ to 30–50¢.</div>
+    </div>
+    <div class="detail-card" id="exc-card-1b">
+      <div class="card-header"><span class="card-icon">⚠️</span><span class="card-title">Order Book Shock</span></div>
+      <div class="card-content">Market makers know forced selling is coming — they will not be the buyer. Bids pulled far below mid. Ask side fills with short sellers. Book becomes severely asymmetric.<br><br><span class="tag tag-down">–3–8% Gap Down</span><span class="tag tag-warn">Spread Blows Out</span><span class="tag tag-down">Bids Pulled</span></div>
+    </div>
+
+    <div class="detail-card" id="exc-card-2a">
+      <div class="card-header"><span class="card-icon">📉</span><span class="card-title">Selling Cascade</span></div>
+      <div class="card-content">Active managers reduce positions (holding excluded stock increases tracking error). Short interest builds visibly — borrow costs rise from ~0.5% to 5–10%+ annualized, limiting further short accumulation.</div>
+    </div>
+    <div class="detail-card" id="exc-card-2b">
+      <div class="card-header"><span class="card-icon">📖</span><span class="card-title">Order Book Deterioration</span></div>
+      <div class="card-content">Each day, bid depth thins further. Uninformed buyers stay away (adverse selection risk). Stock may trade at 50–80% of normal daily volume but with 2–3× normal price impact per trade.<br><br><span class="tag tag-down">Continued Drift Down</span><span class="tag tag-warn">Rising Borrow Cost</span><span class="tag tag-down">Thin Bids</span></div>
+    </div>
+
+    <div class="detail-card" id="exc-card-3a">
+      <div class="card-header"><span class="card-icon">🏦</span><span class="card-title">Passive Funds Execute</span></div>
+      <div class="card-content">All passive ETFs and index funds submit MOC sell orders simultaneously at 4PM close. For a small-cap this can be 10–20× average daily volume concentrated in seconds. No offsetting Russell buyer (already in Russell 2000).</div>
+    </div>
+    <div class="detail-card" id="exc-card-3b">
+      <div class="card-header"><span class="card-icon">🕳️</span><span class="card-title">Price Trough</span></div>
+      <div class="card-content">Closing auction clears far below fundamental value — liquidity is exhausted. Price overshoots downward. This is the maximum mechanical dislocation between price and intrinsic value.<br><br><span class="tag tag-down">Price Trough</span><span class="tag tag-warn">Max Volume</span><span class="tag tag-warn">Max Overshoot</span></div>
+    </div>
+
+    <div class="detail-card" id="exc-card-4a">
+      <div class="card-header"><span class="card-icon">📈</span><span class="card-title">Reversion / Your Trade</span></div>
+      <div class="card-content">Forced selling complete. Shorts cover — this is buying pressure. Market makers return (no more directional risk). Spreads normalize. Value buyers enter if overshoot was severe enough.</div>
+    </div>
+    <div class="detail-card" id="exc-card-4b">
+      <div class="card-header"><span class="card-icon">💡</span><span class="card-title">Trading Strategy Payoff</span></div>
+      <div class="card-content">If exclusion was mechanical (not fundamental collapse), stock reverts toward intrinsic value over 2–4 weeks. Short entered at T-30 covers at trough. Long entered at trough profits from reversion.<br><br><span class="tag tag-up">Reversion ↑</span><span class="tag tag-neutral">Spreads Normalize</span></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">Who Does What</div>
+  <div class="actors-grid">
+    <div class="actor-card">
+      <div class="actor-icon">🤖</div>
+      <div class="actor-name">ML / Quants</div>
+      <div class="actor-action">Predict exclusion before announcement. Short early at better price, lower borrow cost.</div>
+      <div class="actor-timing">T-30 to T-5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">⚡</div>
+      <div class="actor-name">Arbitrageurs</div>
+      <div class="actor-action">Short on/after announcement. Cover at effective date trough.</div>
+      <div class="actor-timing">T=0 to T+5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">🏦</div>
+      <div class="actor-name">Passive ETFs</div>
+      <div class="actor-action">Submit MOC sell orders. Price-insensitive. Concentrated at close.</div>
+      <div class="actor-timing">T+5 close only</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">👔</div>
+      <div class="actor-name">Active Managers</div>
+      <div class="actor-action">Sell to reduce tracking error vs. S&P 600 benchmark. Spread over T+1 to T+4.</div>
+      <div class="actor-timing">T+1 to T+5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">🏪</div>
+      <div class="actor-name">Market Makers</div>
+      <div class="actor-action">Pull bid-side liquidity entirely. Re-enter only after effective date selling clears.</div>
+      <div class="actor-timing">Absent T=0 to T+5</div>
+    </div>
+    <div class="actor-card">
+      <div class="actor-icon">🎯</div>
+      <div class="actor-name">Value Buyers</div>
+      <div class="actor-action">Enter near trough if overshoot is large enough vs. fundamentals. Drive reversion.</div>
+      <div class="actor-timing">T+5 onwards</div>
+    </div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">Order Book — Live View</div>
+  <div class="orderbook">
+    <div class="ob-title">
+      <span>Order Book Depth</span>
+    </div>
+    <div class="ob-phases">
+      <button class="ob-phase-btn active" onclick="setOBPhase('normal')">Normal Day</button>
+      <button class="ob-phase-btn" onclick="setOBPhase('announce')">Post-Announcement</button>
+      <button class="ob-phase-btn" onclick="setOBPhase('effective')">Effective Date</button>
+      <button class="ob-phase-btn" onclick="setOBPhase('after')">Post-Effective</button>
+    </div>
+    <div class="ob-grid" id="ob-display"></div>
+  </div>
+
+  <hr class="divider">
+  <div class="section-label">Price Path</div>
+  <div class="chart-container">
+    <div class="chart-title">Stylized abnormal return — exclusion event</div>
+    <svg class="price-chart" viewBox="0 0 900 160" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="exc-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ef4444" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <line x1="0" y1="40" x2="900" y2="40" stroke="#1e1e2e" stroke-width="1"/>
+      <line x1="0" y1="80" x2="900" y2="80" stroke="#1e1e2e" stroke-width="1"/>
+      <line x1="0" y1="120" x2="900" y2="120" stroke="#1e1e2e" stroke-width="1"/>
+      <line x1="0" y1="60" x2="900" y2="60" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="8" y="57" fill="#475569" font-size="9" font-family="DM Mono">Fundamental Value</text>
+      <line x1="200" y1="10" x2="200" y2="150" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <text x="205" y="22" fill="#f59e0b" font-size="8" font-family="DM Mono">Announcement</text>
+      <line x1="650" y1="10" x2="650" y2="150" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <text x="655" y="22" fill="#94a3b8" font-size="8" font-family="DM Mono">Effective Date</text>
+      <!-- Price path: flat/slight drift → gap down → continued drop → trough → revert -->
+      <polyline points="0,60 150,60 190,65 200,88 250,92 350,98 450,104 550,110 650,130 680,120 730,105 800,88 860,78 900,74"
+        fill="none" stroke="#ef4444" stroke-width="2.5"/>
+      <path d="M 0,60 L 150,60 L 190,65 L 200,88 L 250,92 L 350,98 L 450,104 L 550,110 L 650,130 L 680,120 L 730,105 L 800,88 L 860,78 L 900,74 L 900,160 L 0,160 Z"
+        fill="url(#exc-grad)"/>
+      <text x="60" y="148" fill="#475569" font-size="8" font-family="DM Mono">Pre (stable)</text>
+      <text x="370" y="148" fill="#ef4444" font-size="8" font-family="DM Mono">Forced Selling ↓</text>
+      <text x="730" y="148" fill="#22c55e" font-size="8" font-family="DM Mono">Reversion ↑</text>
+      <!-- Overshoot bracket -->
+      <line x1="650" y1="60" x2="650" y2="130" stroke="#f59e0b" stroke-width="1.5"/>
+      <line x1="645" y1="60" x2="655" y2="60" stroke="#f59e0b" stroke-width="1.5"/>
+      <line x1="645" y1="130" x2="655" y2="130" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="660" y="97" fill="#f59e0b" font-size="8" font-family="DM Mono">overshoot</text>
+    </svg>
+  </div>
+
+</div>
+
+<script>
+  // Tab switching
+  function switchTab(tab) {
+    document.querySelectorAll('.diagram').forEach(d => d.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    document.querySelector('.tab.' + (tab === 'inclusion' ? 'inclusion' : 'exclusion')).classList.add('active');
+  }
+
+  // Timeline step selection
+  const incData = [
+    ['inc-card-0a','inc-card-0b'],
+    ['inc-card-1a','inc-card-1b'],
+    ['inc-card-2a','inc-card-2b'],
+    ['inc-card-3a','inc-card-3b'],
+    ['inc-card-4a','inc-card-4b'],
+  ];
+  const excData = [
+    ['exc-card-0a','exc-card-0b'],
+    ['exc-card-1a','exc-card-1b'],
+    ['exc-card-2a','exc-card-2b'],
+    ['exc-card-3a','exc-card-3b'],
+    ['exc-card-4a','exc-card-4b'],
+  ];
+
+  function setStep(prefix, idx) {
+    const data = prefix === 'inc' ? incData : excData;
+    const timeline = document.getElementById(prefix + '-timeline');
+    const steps = timeline.querySelectorAll('.step');
+    const progress = document.getElementById(prefix + '-progress');
+
+    steps.forEach((s,i) => s.classList.toggle('active', i === idx));
+    progress.style.width = (idx / (steps.length - 1) * 100) + '%';
+
+    // Hide all cards
+    data.flat().forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.classList.remove('visible');
+    });
+    // Show current
+    data[idx].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.classList.add('visible');
+    });
+  }
+
+  // Order book phases
+  const obPhases = {
+    normal: {
+      label: 'Normal Trading Day',
+      asks: [{p:'$10.12', v:'3,000'},{p:'$10.08', v:'5,000'},{p:'$10.05', v:'2,000'}],
+      spread: 'Spread: $0.05 — Normal depth ~$500k/side',
+      bids: [{p:'$10.00', v:'2,000'},{p:'$9.97', v:'4,000'},{p:'$9.93', v:'6,000'}],
+      askWidths: [30,60,20],
+      bidWidths: [20,40,60],
+    },
+    announce: {
+      label: 'Post-Announcement (T=0)',
+      asks: [{p:'$9.90', v:'12,000 ← shorts'},{p:'$9.85', v:'8,000 ← shorts'},{p:'$9.80', v:'1,000'}],
+      spread: 'Spread: $0.30–0.40 — Bids pulled, shorts flooding ask',
+      bids: [{p:'$9.50', v:'500'},{p:'$9.40', v:'1,000'},{p:'$9.30', v:'1,500'}],
+      askWidths: [90,65,10],
+      bidWidths: [5,10,15],
+    },
+    effective: {
+      label: 'Effective Date Close (T+5)',
+      asks: [{p:'$9.20', v:'20,000 ← passive MOC sells'},{p:'$9.10', v:'8,000'},{p:'$9.05', v:'2,000'}],
+      spread: 'Spread: $0.50–1.00 — Bid side nearly empty, MOC flood incoming',
+      bids: [{p:'$8.60', v:'300'},{p:'$8.40', v:'200'},{p:'$8.20', v:'500'}],
+      askWidths: [100,70,20],
+      bidWidths: [3,2,5],
+    },
+    after: {
+      label: 'Post-Effective Date (T+6 onwards)',
+      asks: [{p:'$9.35', v:'3,000'},{p:'$9.32', v:'5,500'},{p:'$9.29', v:'2,500'}],
+      spread: 'Spread: $0.06 — Normalizing. Shorts covering = buying pressure',
+      bids: [{p:'$9.23', v:'3,000'},{p:'$9.20', v:'5,000'},{p:'$9.17', v:'4,500'}],
+      askWidths: [30,55,25],
+      bidWidths: [30,50,45],
+    }
+  };
+
+  function setOBPhase(phase) {
+    document.querySelectorAll('.ob-phase-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(phase === 'normal' ? 'normal' : phase === 'announce' ? 'announcement' : phase === 'effective' ? 'effective' : 'post')));
+    const d = obPhases[phase];
+    const container = document.getElementById('ob-display');
+    container.innerHTML = `
+      <div class="ob-ask">
+        <div class="ob-side-title">ASK (Sellers)</div>
+        ${d.asks.map((r,i)=>`
+          <div class="ob-row">
+            <div class="ob-bar" style="width:${d.askWidths[i]}%"></div>
+            <span class="ob-price" style="color:#ef4444">${r.p}</span>
+            <span class="ob-vol">${r.v}</span>
+          </div>`).join('')}
+      </div>
+      <div class="ob-bid">
+        <div class="ob-side-title">BID (Buyers)</div>
+        ${d.bids.map((r,i)=>`
+          <div class="ob-row">
+            <div class="ob-bar" style="width:${d.bidWidths[i]}%"></div>
+            <span class="ob-price" style="color:#22c55e">${r.p}</span>
+            <span class="ob-vol">${r.v}</span>
+          </div>`).join('')}
+      </div>
+      <div class="ob-spread">${d.label} — ${d.spread}</div>
+    `;
+  }
+
+  // Init
+  setOBPhase('normal');
+  document.getElementById('inc-progress').style.width = '0%';
+  document.getElementById('exc-progress').style.width = '0%';
+</script>
+</body>
+</html>
